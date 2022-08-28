@@ -161,7 +161,11 @@ class Experiment:
         dirs = [x[0].split('/')[-1].split('_')[-1]
                 for x in os.walk(experiment_dir)]
         numeric_dirs = [int(dir_) if dir_.isnumeric() else -1 for dir_ in dirs]
-        latest_exp = max(numeric_dirs)
+        try:
+            latest_exp = max(numeric_dirs)
+        except ValueError:
+            # case when first experiment
+            latest_exp = -1
         if latest_exp == -1:
             latest_dir = None
         else:
