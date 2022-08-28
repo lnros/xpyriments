@@ -1,7 +1,7 @@
 """
 Logging class using YAML config file
 """
-from churn.config.constants import Constant as const
+from xpyriments.config.constants import Constant as const
 
 import logging
 import logging.config
