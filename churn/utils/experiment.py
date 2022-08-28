@@ -27,6 +27,7 @@ class Experiment:
                  experiment_name: str):
 
         self.data = data
+        self.df_test = None
         self.experiment_name = experiment_name
         self.config_name = f'{self.experiment_name}_cfg.pkl'
         self.current_experiment_dir = self._get_latest_experiment()
@@ -45,17 +46,25 @@ class Experiment:
                                log_plots=True,
                                log_data=True):
         LOG.start_logging()
-        df_train, df_test = train_test_split(
+        df_train, df_tmp = train_test_split(
             self.data,
             train_size=TrainTest.TRAIN_SIZE,
             random_state=const.RANDOM_SEED,
             stratify=self.data[Features.TARGET],
         )
+        df_dev, df_test = train_test_split(
+            df_tmp,
+            test_size=TrainTest.DEV_TEST_RATE,
+            random_state=const.RANDOM_SEED,
+            stratify=df_tmp[Features.TARGET],
+        )
+        # Used for prediction
+        self.df_test = df_test
         try:
             setup(
                 experiment_name=self.experiment_name,
                 data=df_train,
-                test_data=df_test,
+                test_data=df_dev,
                 target=Features.TARGET,
                 categorical_features=list(Features.CATEGORICAL),
                 numeric_features=list(Features.NUMERICAL),
