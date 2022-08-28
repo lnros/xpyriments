@@ -2,14 +2,14 @@
 Experiment Utils
 """
 
-from churn.config.constants import Constant as const
-from churn.config.features import Features
-from churn.config.model_selection import TrainTest
+from xpyriments.config.constants import Constant as const
+from xpyriments.config.features import Features
+from xpyriments.config.model_selection import TrainTest
 from pycaret.classification import *
 from sklearn.metrics import accuracy_score, average_precision_score, \
     confusion_matrix, f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
-from churn.utils.log import Log
+from xpyriments.utils.log import Log
 
 import json
 import logging
