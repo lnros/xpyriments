@@ -8,6 +8,7 @@ class Features:
     NOT_FEATURES: Tuple = ('customerID',)
     CATEGORICAL: Tuple = (
         'gender',
+        'SeniorCitizen',
         'Partner',
         'Dependents',
         'PhoneService',
@@ -24,7 +25,6 @@ class Features:
         'PaymentMethod',
     )
     NUMERICAL: Tuple = (
-        'SeniorCitizen',
         'tenure',
         'MonthlyCharges',
         'TotalCharges',

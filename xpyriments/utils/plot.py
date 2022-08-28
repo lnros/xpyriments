@@ -575,3 +575,119 @@ def annotate_line(xs, ys, xytext):
                      xytext=xytext,
                      # distance from text to points (x,y)
                      ha='center')
+
+
+def plot_distribution_categorical_feature_by_categorical_target(feat, target,
+                                                                df):
+    """
+    This function plots a bar plot with the distribution os a categorical features according to its target label
+    """
+    data = pd.DataFrame(pd.crosstab(df[feat], df[target]). \
+                        apply(lambda r: round(r / r.sum(), 2),
+                              axis=1).unstack()). \
+        reset_index()
+
+    g = sns.barplot(x=data[target], y=data[0], hue=data[feat],
+                    palette='rocket')
+    plt.title(f'Distribution of {target} vs. {feat}\n')
+    plt.ylabel('%')
+
+    for p in g.patches:
+        g.annotate(format(p.get_height(), '.0%'), \
+                   (p.get_x() + p.get_width() / 2., \
+                    p.get_height()), \
+                   ha='center', \
+                   va='center', \
+                   xytext=(0, 10), \
+                   textcoords='offset points')
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_distribution_numerical_feat_by_target(numerical_feat, target, df,
+                                               continuous_feat=[]):
+    """
+    """
+
+    for feat in numerical_feat:
+        if feat not in continuous_feat:
+            df.groupby(target)[feat].plot(kind='kde', figsize=(7, 3))
+        else:
+            sns.countplot(x=feat, hue=target, data=df, palette='rocket')
+
+        plt.legend(loc='upper right')
+        plt.title(feat + f' density by {target}')
+        plt.xlabel(feat)
+        plt.tight_layout()
+        plt.show()
+
+
+def plot_count_categorical_by_target(categorical_columns, df, target):
+    for i, col in enumerate(categorical_columns):
+        plt.subplot(1, len(categorical_columns), i + 1)
+        sns.countplot(x=col, data=df, hue=target)
+    plt.suptitle(f'Distribution of categorical features')
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_two_categorical_features(x, hue, df, stat='probability'):
+    ""
+    ""
+    g = sns.histplot(data=df, x=x, hue=hue, stas=stat, multiple='dodge')
+    for p in g.patches:
+        g.annotate(format(p.get_height(), '.0%'), \
+                   (p.get_x() + p.get_width() / 2., \
+                    p.get_height()), \
+                   ha='center', \
+                   va='center', \
+                   xytext=(0, 10), \
+                   textcoords='offset points')
+    plt.title(f'Distribution of {x} accoding to {hue}\n')
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_distribution_categorical_count(categorical_feat, df, target=None):
+    """
+    """
+
+    if target is not None:
+        if len(df[target].unique()) < 6:
+            ax = sns.countplot(x=df[target], data=df)
+            plt.title(f'Distribution of {target}')
+            plt.show()
+
+            for cat_vat in categorical_feat:
+                ax = sns.countplot(x=df[target], hue=df[cat_vat], data=df,
+                                   palette='rocket')
+                plt.title(f'Distribution of {target} vs. {cat_vat}')
+        else:
+            ax = sns.countplot(y=df[target], data=df)
+            plt.title(f'Distribution of {target}')
+            plt.show()
+
+            for cat_vat in categorical_feat:
+                ax = sns.countplot(y=df[target], x=df[cat_vat], data=df,
+                                   palette='rocket')
+                plt.title(f'Distribution of {cat_vat} vs. {target}')
+
+    else:
+        for cat_vat in categorical_feat:
+            ax = sns.countplot(x=df[cat_vat], data=df, color='maroon')
+            plt.title(f'Distribution of {cat_vat}')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_boxplot_numerical_by_target(numerical_features, target, df):
+    """
+    """
+    plt.figure(figsize=(30, 5))
+    for i, col in enumerate(numerical_features):
+        plt.subplot(1, len(numerical_features), i + 1)
+        sns.boxplot(x=df[target], y=df[col], palette='rocket')
+    plt.suptitle(f"Numerical features distribution vs. {target}", fontsize=30)
+    plt.tight_layout()
+    plt.show()

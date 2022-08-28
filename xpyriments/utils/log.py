@@ -14,7 +14,7 @@ class Log:
     """
 
     def __init__(self, log_cfg_file=f'{const.REPO_PATH}/'
-                                    'churn/config/logger.yaml'):
+                                    'config/logger.yaml'):
         self.logger = None
         self.log_cfg_file = log_cfg_file
 

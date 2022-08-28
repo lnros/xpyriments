@@ -42,9 +42,10 @@ class Experiment:
                                fix_imbalance: bool = False,
                                feature_selection: bool = True,
                                feature_selection_method: str = 'boruta',
+                               html=False,
                                log_experiment=True,
-                               log_plots=True,
-                               log_data=True):
+                               log_plots=False,
+                               log_data=False):
         LOG.start_logging()
         df_train, df_tmp = train_test_split(
             self.data,
@@ -75,7 +76,7 @@ class Experiment:
                 fix_imbalance=fix_imbalance,
                 feature_selection=feature_selection,
                 feature_selection_method=feature_selection_method,
-                html=False,
+                html=html,
                 silent=True,
                 log_experiment=log_experiment,
                 log_plots=log_plots,
@@ -129,6 +130,20 @@ class Experiment:
             except Exception as e:
                 logging.exception(e)
             LOG.logger.debug(f'{col}: {metric}')
+
+    def analyze(self,
+                dash_kwargs: Optional[Dict] = None,
+                run_kwargs: Optional[Dict] = None):
+        if dash_kwargs is None:
+            dash_kwargs = {}
+        if run_kwargs is None:
+            run_kwargs = {}
+        dashboard(
+            estimator=self.best_model,
+            display_format='external',
+            dashboard_kwargs=dash_kwargs,
+            run_kwargs=run_kwargs
+        )
 
     def predict(self, data):
         load_config(self.config_name)
