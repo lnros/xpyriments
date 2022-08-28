@@ -7,14 +7,14 @@ formatters:
 handlers:
   console:
     class: logging.StreamHandler
-    level: INFO
+    level: DEBUG
     formatter: simple
     stream: ext://sys.stdout
   file:
     class: logging.FileHandler
     level: DEBUG
     formatter: extended
-    filename: churn/logs/debug.log
+    filename: logs/debug.log
 loggers:
   sampleLogger:
     level: DEBUG
@@ -22,4 +22,4 @@ loggers:
     propagate: no
 root:
   level: DEBUG
-  handlers: [console]
+  handlers: [console, file]

@@ -1,6 +1,7 @@
 """
 Logging class using YAML config file
 """
+from churn.config.constants import Constant as const
 
 import logging
 import logging.config
@@ -12,7 +13,8 @@ class Log:
     Logging class using YAML config file
     """
 
-    def __init__(self, log_cfg_file='logger.yaml'):
+    def __init__(self, log_cfg_file=f'{const.REPO_PATH}/'
+                                    'churn/config/logger.yaml'):
         self.logger = None
         self.log_cfg_file = log_cfg_file
 

@@ -1,133 +1,171 @@
-from churn.config.experiments import Models, Hyperparameters, Search
-from churn.config.model_selection import TrainTest
-from category_encoders import TargetEncoder
-from sklearn.compose import make_column_transformer
-from sklearn.impute import SimpleImputer
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+"""
+Experiment Utils
+"""
 
-from typing import Any, List, Dict, Optional
+from churn.config.constants import Constant as const
+from churn.config.features import Features
+from churn.config.model_selection import TrainTest
+from pycaret.classification import *
+from sklearn.metrics import accuracy_score, average_precision_score, \
+    confusion_matrix, f1_score, precision_score, recall_score
+from sklearn.model_selection import train_test_split
 from churn.utils.log import Log
 
-import numpy as np
+import json
+import logging
+import os
 import pandas as pd
-import xgboost as xgb
+
+LOG = Log()
+pd.set_option('display.width', 1000)
 
 
 class Experiment:
-    MODELS = {
-        'random_forest': Models.RANDOM_FOREST,
-        'catboost': Models.CATBOOST,
-        'xgboost': Models.XGBOOST,
-    }
-    PARAMS = {
-        'random_forest': Hyperparameters.RANDOM_FOREST,
-        'catboost': Hyperparameters.CATBOOST,
-        'xgboost': Hyperparameters.XGBOOST,
-    }
-    SEARCH = {
-        'random': Search.RANDOM,
-        'grid': Search.GRID,
-    }
 
     def __init__(self,
                  data: pd.DataFrame,
-                 target: str,
-                 models: List[Any],
-                 search_type: str = 'random',
-                 mlflow: bool = False,
-                 verbose: bool = True,
-                 random_state: int = 0,
-                 params: Optional[List[Dict]] = None, ):
-        self.target = target
-        self.data = {
-            'original_data': data,
-            'X': data.drop(target, axis=1),
-            'y': data[target],
-        }
-        self.models = [self.MODELS.get(model) if isinstance(model, str)
-                       else model for model in models]
-        self.model_names = [model if isinstance(model, str)
-                            else type(model).__name__ for model in models]
-        if params is None:
-            self.params = [self.PARAMS.get(model) for model in models]
+                 experiment_name: str):
+
+        self.data = data
+        self.experiment_name = experiment_name
+        self.config_name = f'{self.experiment_name}_cfg.pkl'
+        self.current_experiment_dir = self._get_latest_experiment()
+        self._full_config_name = f'{self.current_experiment_dir}/' \
+                                 f'{self.config_name}' \
+            if self.current_experiment_dir is not None else None
+        self.best_model = None
+        self.model_name = None
+
+    def initialize_train_setup(self,
+                               normalize: bool = False,
+                               fix_imbalance: bool = False,
+                               feature_selection: bool = True,
+                               feature_selection_method: str = 'boruta',
+                               log_experiment=True,
+                               log_plots=True,
+                               log_data=True):
+        LOG.start_logging()
+        df_train, df_test = train_test_split(
+            self.data,
+            train_size=TrainTest.TRAIN_SIZE,
+            random_state=const.RANDOM_SEED,
+            stratify=self.data[Features.TARGET],
+        )
+        try:
+            setup(
+                experiment_name=self.experiment_name,
+                data=df_train,
+                test_data=df_test,
+                target=Features.TARGET,
+                categorical_features=list(Features.CATEGORICAL),
+                numeric_features=list(Features.NUMERICAL),
+                date_features=list(Features.DATES),
+                ignore_features=list(Features.NOT_FEATURES),
+                session_id=const.RANDOM_SEED,
+                normalize=normalize,
+                fix_imbalance=fix_imbalance,
+                feature_selection=feature_selection,
+                feature_selection_method=feature_selection_method,
+                html=False,
+                silent=True,
+                log_experiment=log_experiment,
+                log_plots=log_plots,
+                log_data=log_data,
+            )
+        except Exception as e:
+            LOG.logger.error(e)
         else:
-            self.params = params
-        self.search = self.SEARCH.get(search_type)
-        self.mlflow = mlflow
-        self.verbose = verbose
-        self.random_state = random_state
+            self._create_experiment_dir()
+            self._full_config_name = f'{self.current_experiment_dir}/' \
+                                     f'{self.config_name}'
+            save_config(self._full_config_name)
 
-    def train_dev_test_split(self, train_size: float, dev_test_rate: float):
-
-        X_train, X_tmp, y_train, y_tmp = train_test_split(
-            self.data['X'],
-            self.data['y'],
-            random_state=self.random_state,
-            train_size=train_size,
+    def train_model(self, sort='F1'):
+        LOG.start_logging()
+        load_config(self._full_config_name)
+        self.best_model = compare_models(
+            include=['rf', 'lightgbm', 'xgboost', 'catboost', 'ada'],
+            sort=sort
         )
-        X_dev, X_test, y_dev, y_test = train_test_split(
-            X_tmp,
-            y_tmp,
-            random_state=self.random_state,
-            test_size=dev_test_rate,
+        self.model_name = type(self.best_model).__name__
+
+        save_model(self.best_model,
+                   f'{self.current_experiment_dir}/{self.model_name}')
+        y_test = get_config('y_test')
+        X_test = get_config('X_test')
+        y_pred = self.best_model.predict(X_test)
+        y_scores = self.best_model.predict_proba(X_test)[:, 1]
+        accuracy = accuracy_score(y_test, y_pred)
+        precision = precision_score(y_test, y_pred)
+        recall = recall_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred)
+        ap = average_precision_score(y_test, y_scores)
+        matrix = confusion_matrix(y_test, y_pred)
+        result = matrix.tolist()
+        print(json.dumps({'cm_data': result}))
+        generalization_results = pd.DataFrame(
+            {
+                'model_name': [self.model_name],
+                'Accuracy': [accuracy],
+                'Precision': [precision],
+                'Recall': [recall],
+                'F1': [f1],
+                'AP': [ap],
+            }
         )
+        # logging metrics
+        for col in generalization_results.columns:
+            try:
+                metric = generalization_results[col].values[0]
+            except Exception as e:
+                logging.exception(e)
+            LOG.logger.debug(f'{col}: {metric}')
 
-        self.data['X_train'] = X_train
-        self.data['X_dev'] = X_dev
-        self.data['X_test'] = X_test
-        self.data['y_train'] = y_train
-        self.data['y_dev'] = y_dev
-        self.data['y_test'] = y_test
+    def predict(self, data):
+        load_config(self.config_name)
+        pipeline = load_model(self.model_name)
+        model = pipeline.named_steps.trained_model
+        try:
+            predict_df = predict_model(model, data=data, raw_score=True)
+        except Exception as e:
+            logging.exception(e)
+        else:
 
-        # if 'xgboost' in self.model_names:
-        #     dtrain = xgb.DMatrix(X_train, label=y_train)
-        #     ddev = xgb.DMatrix(X_dev, label=y_dev)
-        #     dtest = xgb.DMatrix(X_test, label=y_test)
-        #     self.data['xgboost_dtrain'] = dtrain
-        #     self.data['xgboost_ddev'] = ddev
-        #     self.data['xgboost_dtest'] = dtest
+            LOG.logger.debug(f'prediction_shape: {predict_df.shape}')
+            LOG.logger.debug(
+                'prediction_distribution: '
+                f"{predict_df['Label'].value_counts(normalize=True).to_json()}"
+            )
+        filename = 'predict_output.parquet'
+        predict_df.to_parquet(f'{self.current_experiment_dir}/{filename}')
 
-    def make_preprocessing_xgboost(self):
-        data_dmatrix = xgb.DMatrix(data=self.data['X'],
-                                   label=self.data['y'])
-        self.data['xgboost_dmatrix'] = data_dmatrix
+    def _create_experiment_dir(self):
+        if not os.path.isdir(const.EXPERIMENTS_DIR):
+            os.mkdir(const.EXPERIMENTS_DIR)
+        experiment_dir = os.path.join(const.EXPERIMENTS_DIR,
+                                      self.experiment_name)
+        if not os.path.isdir(experiment_dir):
+            os.mkdir(experiment_dir)
+        i = 0
+        while True:
+            current_experiment = os.path.join(experiment_dir,
+                                              self.experiment_name + f'_{i}')
+            if not os.path.isdir(current_experiment):
+                os.mkdir(current_experiment)
+                break
+            i += 1
+        self.current_experiment_dir = current_experiment
 
-    def make_preprocessing(self,
-                           not_features: List[str],
-                           numerical_features: List[str],
-                           categorical_features: List[str],
-                           normalize: bool = False):
+    def _get_latest_experiment(self):
+        experiment_dir = f'{const.EXPERIMENTS_DIR}/{self.experiment_name}'
+        dirs = [x[0].split('/')[-1].split('_')[-1]
+                for x in os.walk(experiment_dir)]
+        numeric_dirs = [int(dir_) if dir_.isnumeric() else -1 for dir_ in dirs]
+        latest_exp = max(numeric_dirs)
+        if latest_exp == -1:
+            latest_dir = None
+        else:
+            latest_dir = os.path.join(experiment_dir,
+                                      self.experiment_name + f'_{latest_exp}')
 
-        all_features = self.data['X'].columns #list(set(self.data['X'].columns) - set(not_features))
-        transformers = make_column_transformer(
-            ('drop', not_features),
-            # Filling NaNs with a number out ouf the distribution
-            # We can do this since features are either categorical
-            # or non-negative
-            (SimpleImputer(strategy='constant', fill_value=-1), all_features),
-            (TargetEncoder(), categorical_features),
-
-        )
-        scaler = make_column_transformer(
-            (StandardScaler, all_features),
-        ) if normalize else make_column_transformer(
-            ('passthrough', all_features)
-        )
-
-        pipe = Pipeline(
-            [
-                ('transformers', transformers),
-                ('scaler', scaler),
-            ]
-        )
-
-        self.data['pipeline'] = pipe
-
-        pipe.fit_transform(self.data['X_train'], self.data['y_train'])
-
-        if 'xgboost' in self.model_names:
-            self.make_preprocessing_xgboost()
-        if 'catboost' in self.model_names:
-            self.make_preprocessing_catboost()
+        return latest_dir

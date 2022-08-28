@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from pathlib import Path
+import os
 
 
 @dataclass
 class Constant:
     RANDOM_SEED: int = 123
-    LOW_THRESHOLD: float = 0.1
-    MEDIUM_THRESHOLD: float = 0.3
-    HIGH_THRESHOLD: float = 0.5
-    DAY_IN_SECONDS: int = 24 * 60 * 60
+    EXPERIMENTS_DIR = 'experiments'
+    REPO_PATH = Path(__file__).parent.parent.resolve()
+    SAVE_PATH = os.path.join(REPO_PATH, 'images')

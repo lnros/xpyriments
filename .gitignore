@@ -3,3 +3,7 @@
 env
 .env
 logs/*
+catboost_info
+*.log
+mlruns
+experiments/
