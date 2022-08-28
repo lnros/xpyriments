@@ -7,3 +7,4 @@ catboost_info
 *.log
 mlruns
 experiments/
+*.ipynb_checkpoints
